@@ -27,26 +27,35 @@ class ParameterServerImpl(fieldType: FieldType) extends ParameterServer {
     field.fieldType
   })
 
+  var checkForNaNs = true
+
   private val length = fieldType.fieldShape.points * fieldType.tensorShape.points
-  println("created server for field with fieldType: "+fieldType)
 
   private val weights = new FlipBuffer[Float](length)
+  def front = weights.front
+  def back = weights.back
 
   override def push(field: ScalarFieldReader): Unit = synchronized {
     val it = field.iterator
     var i = 0
-    val len = weights.length
+    val len = back.length
     while (i < len) {
-      weights(i) += it.next()
+      if (checkForNaNs) {
+        val n = it.next()
+        if (checkForNaNs) require(!n.isNaN, "Push op detected NaNs in a field (idx: "+i+")")
+        back(i) += n
+      } else {
+        back(i) += it.next()
+      }
       i += 1
     }
-    require(!it.hasNext) // sanity check
+    require(!it.hasNext, "Got more data than expected") // sanity check
   }
 
-  override def pull(): Array[Float] = weights.front
+  override def pull(): Array[Float] = front
 
-  override def prepareForNextStep(): Unit = {
+  override def prepareForNextStep(): Unit = synchronized {
     weights.swap()
-    java.util.Arrays.fill(weights.back, 0f)
+    java.util.Arrays.fill(back, 0f)
   }
 }
