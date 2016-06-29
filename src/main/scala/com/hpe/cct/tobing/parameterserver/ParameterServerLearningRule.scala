@@ -2,8 +2,8 @@ package com.hpe.cct.tobing.parameterserver
 
 import scala.collection.mutable
 
-import libcog.{Field, Shape, Sensor}
-import cogx.compiler.parser.syntaxtree.Actuator
+import libcog.{Field, Shape, Sensor, UnpipelinedSensor}
+import cogx.compiler.parser.syntaxtree.{UnpipelinedActuator, Actuator}
 import toolkit.neuralnetwork.policy.LearningRule
 
 /** Wraps a learning rule for use with ParameterServerImpl.
@@ -24,7 +24,9 @@ import toolkit.neuralnetwork.policy.LearningRule
   * Created by tobing on 6/3/16.
   */
 class ParameterServerLearningRule(
-    wrappedRule: LearningRule)
+    wrappedRule: LearningRule,
+    pipelinedSensors: Boolean = false,
+    pipelinedActuators: Boolean = false)
   extends LearningRule {
 
   private val serverMap = mutable.Map.empty[String, ParameterServer]
@@ -43,9 +45,17 @@ class ParameterServerLearningRule(
     val server = getServerFor(backward)
 
     val flattened = backward.reshape(Shape(points), Shape())
-    val act = Actuator(flattened, server.push(_))
+    val act = if (pipelinedActuators) {
+      Actuator(flattened, server.push(_))
+    } else {
+      UnpipelinedActuator(flattened, server.push(_))
+    }
 
-    val sensor = new Sensor(points, () => Some(server.pull()))
+    val sensor = if (pipelinedSensors) {
+      new Sensor(points, () => Some(server.pull()))
+    } else {
+      new UnpipelinedSensor(points, () => server.pull())
+    }
     val inflated = sensor.reshape(fs, ts)
 
     wrappedRule.learn(forward, inflated)
