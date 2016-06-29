@@ -16,7 +16,7 @@ import toolkit.neuralnetwork.util.{CorrectCount, NormalizedLowPass}
   *
   * Created by tobing on 6/3/16.
   */
-class TestParamServerGraph(
+class DistributedLogisticRegression(
     lr: LearningRule,
     bs: Int,
     graphIdx: Int,
@@ -36,7 +36,12 @@ class TestParamServerGraph(
   val b = BiasLayer(data, lr)
   val fc = FullyConnectedLayer(b, 10, lr)
   val loss = CrossEntropySoftmax(fc, label)
-  val normLoss = loss / batchSize
+  //val normLoss = loss / batchSize // Original definition
+  // For whatever reason, unless we use the aggregate batch size across the
+  // parameter server group, the model will eventually produce NaNs and die.
+  // The model is stable using the aggregate batch size (learning parameters
+  // are tuned for the aggregate size, maybe?)
+  val normLoss = loss / bs//batchSize
   val correct = CorrectCount(fc.forward, label.forward, batchSize, 0.01f) / batchSize
   val avgCorrect = NormalizedLowPass(correct, 0.001f)
   val avgLoss = NormalizedLowPass(normLoss.forward, 0.001f)
@@ -44,7 +49,7 @@ class TestParamServerGraph(
   normLoss.activateSGD()
 }
 
-object TestParamServerGraph {
-  val defaultLearningRule = StandardLearningRule(0.01f, 0.9f, 0.0005f)
-  val defaultBatchSize = 120
+object DistributedLogisticRegression {
+  val DefaultLearningRule = StandardLearningRule(0.01f, 0.9f, 0.0005f)
+  val DefaultBatchSize = 120
 }
