@@ -33,3 +33,14 @@ object TestDistributedLogisticRegression extends {
     g
   }
 } with TestHarness(graphs, serverRule)
+
+object TestDistributedAlexNet extends {
+  val nGraphs = 2
+  val lr = DistributedAlexNet.DefaultLearningRule
+  val bs = DistributedAlexNet.DefaultBatchSize
+  val serverRule = new ParameterServerLearningRule(lr)
+  val graphs = Array.tabulate(nGraphs) { i =>
+    libcog.Random.setDeterministic()
+    new DistributedAlexNet(serverRule, bs, i, nGraphs, useRandomData = true)
+  }
+} with TestHarness(graphs, serverRule)
